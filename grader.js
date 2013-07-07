@@ -21,11 +21,14 @@ References:
    - https://developer.mozilla.org/en-US/docs/JSON#JSON_in_Firefox_2
 */
 
-var fs = require('fs');
-var program = require('commander');
-var cheerio = require('cheerio');
-var HTMLFILE_DEFAULT = "index.html";
-var CHECKSFILE_DEFAULT = "checks.json";
+var fs = require('fs'),
+    program = require('commander'),
+    cheerio = require('cheerio'),
+    sys = require('util'),
+    rest = require('restler');
+var HTMLFILE_DEFAULT = "index.html",
+    CHECKSFILE_DEFAULT = "checks.json",
+    outurlfile = "tmp.txt";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -61,14 +64,38 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var getUrl = function(inurl, checksfile) {
+    var instr = inurl.toString();
+    rest.get(instr)
+    .on('complete', function(result) {
+	fs.writeFileSync(outurlfile, result);
+	var checkJson = checkHtmlFile(outurlfile, checksfile);
+	var outJson = JSON.stringify(checkJson, null, 4);
+	fs.unlink(outurlfile);
+	console.log(outJson);
+    })
+    .on('error', function(err) {
+	console.log('Error: ' + err);
+	process.exit(1);
+    });
+};
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <url_file>', 'URL')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    if(program.url)
+    {
+	getUrl(program.url, program.checks);
+    }
+    else
+    {
+	var checkJson = checkHtmlFile(program.file, program.checks);
+	var outJson = JSON.stringify(checkJson, null, 4);
+	console.log(outJson);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
